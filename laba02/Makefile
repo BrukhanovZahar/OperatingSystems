@@ -22,7 +22,7 @@ $(TASK): $(OBJ1)
 
 clean_all:
 	rm -rf *.o **/*.o
-	find $(BUILD) -type f ! -name "*.txt" -exec rm {} \;
+	find $(BUILD) -type f ! -name "*.txt" ! -name ".gitignore" -exec rm {} \;
 
 clean:
 	rm -rf *.o **/*.o
