@@ -1,0 +1,5 @@
+*.o
+.idea/
+.DS_Store
+
+!test.txt
