@@ -10,17 +10,17 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-const char* shared_memory_name = "share_memory_data";
-const char* semaphore_name = "share_memory_data";
-const int access_mode = 0666;
-const int size_shared_memory = 4096;
-const int max_size_of_string = 50;
+const char* SHARED_MEMORY_NAME = "share_memory_data";
+const char* SEMAPHORE_NAME = "semaphore";
+const int ACCESS_MODE = 0666;
+const int SIZE_SHARED_MEMORY = 4096;
+const int MAX_SIZE_OF_STRING = 50;
 
 void error_processing(bool exception, char* bug_report) {
     if (exception) {
         write(STDERR_FILENO, bug_report, strlen(bug_report) * sizeof(char));
-        shm_unlink(shared_memory_name);
-        sem_unlink(semaphore_name);
+        shm_unlink(SHARED_MEMORY_NAME);
+        sem_unlink(SEMAPHORE_NAME);
         exit(-1);
     }
 }

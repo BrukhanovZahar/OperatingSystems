@@ -1,13 +1,13 @@
 #include "../include/general.h"
 
 int main() {
-    int file_descriptor_for_exchange = shm_open(shared_memory_name, O_CREAT | O_RDWR, access_mode);
+    int file_descriptor_for_exchange = shm_open(SHARED_MEMORY_NAME, O_CREAT | O_RDWR, ACCESS_MODE);
     error_processing(file_descriptor_for_exchange == -1, "Shm_open error");
 
-    sem_t* semaphore = sem_open(semaphore_name, O_CREAT, access_mode, 0);
+    sem_t* semaphore = sem_open(SEMAPHORE_NAME, O_CREAT, ACCESS_MODE, 0);
     error_processing(semaphore == SEM_FAILED, "Sem_open error");
 
-    void* result_data_for_exchange = mmap(NULL, size_shared_memory, PROT_READ | PROT_WRITE, MAP_SHARED,
+    void* result_data_for_exchange = mmap(NULL, SIZE_SHARED_MEMORY, PROT_READ | PROT_WRITE, MAP_SHARED,
                                           file_descriptor_for_exchange, 0);
     error_processing(result_data_for_exchange == MAP_FAILED, "Mmap error");
 
@@ -16,7 +16,7 @@ int main() {
     bool is_this_first_number = true;
 
     while ((read(STDIN_FILENO, &character, 1)) > 0) {
-        char* buffer = malloc(sizeof(char) * max_size_of_string);
+        char* buffer = malloc(sizeof(char) * MAX_SIZE_OF_STRING);
         int index_of_buffer = 0;
 
         while (character != ' ' && character != '\n' && character != '\0') {
