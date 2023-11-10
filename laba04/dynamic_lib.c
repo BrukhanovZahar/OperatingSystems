@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 
-const char* FIRST_LIBRARY_PATH = "lib_first.so";
-const char* SECOND_LIBRARY_PATH = "lib_second.so";
+const char* FIRST_LIBRARY_PATH = "trash/liblib_first.so";
+const char* SECOND_LIBRARY_PATH = "trash/liblib_second.so";
 void* handle = NULL;
 int current_library = 1;
 
