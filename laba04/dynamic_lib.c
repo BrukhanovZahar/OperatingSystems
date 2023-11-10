@@ -5,7 +5,7 @@
 
 const char* FIRST_LIBRARY_PATH = "trash/liblib_first.so";
 const char* SECOND_LIBRARY_PATH = "trash/liblib_second.so";
-void* handle = NULL;
+void* library_descriptor = NULL;
 int current_library = 1;
 
 float (* derivative_func)(float point, float delta_x) = NULL;
@@ -20,17 +20,17 @@ void error_processing(bool exception, char* bug_report) {
 }
 
 void open_library(const char* path_to_library) {
-    if (handle != NULL) {
-        dlclose(handle);
+    if (library_descriptor != NULL) {
+        dlclose(library_descriptor);
     }
 
-    handle = dlopen(path_to_library, RTLD_LAZY);
-    error_processing(handle == NULL, "Library opening error.\n");
+    library_descriptor = dlopen(path_to_library, RTLD_LAZY);
+    error_processing(library_descriptor == NULL, "Library opening error.\n");
 
-    derivative_func = dlsym(handle, "derivative");
+    derivative_func = dlsym(library_descriptor, "derivative");
     error_processing(derivative_func == NULL, "Error in finding the method derivative.\n");
 
-    sort_func = dlsym(handle, "sort");
+    sort_func = dlsym(library_descriptor, "sort");
     error_processing(sort_func == NULL, "Error in finding the method sort.\n");
 }
 
@@ -100,6 +100,6 @@ int main() {
 
     }
 
-    dlclose(handle);
+    dlclose(library_descriptor);
     return 0;
 }
