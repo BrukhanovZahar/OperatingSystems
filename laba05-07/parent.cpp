@@ -25,32 +25,40 @@ int main() {
         cin >> command;
 
         if (command == "create") {
-            if (child_id == 0) {
-                int id;
-                cin >> id;
-                //TODO:: получить id родителя
 
-                mainSocket.bind(adr + to_string(id));
-                string new_adr = adr + to_string(id);
+            int childId, parentId;
+            cin >> childId >> parentId;
+
+            if (child_id == 0) {
+
+                if (parentId != -1) {
+                    cerr << "There is no such parent node" << endl;
+                    continue;
+                }
+
+                // осталвяем все как есть
+
+                mainSocket.bind(adr + to_string(childId));
+                string new_adr = adr + to_string(childId);
 
                 char* adr_ = new char[new_adr.size() + 1];
                 memcpy(adr_, new_adr.c_str(), new_adr.size() + 1);
 
-                char* id_ = new char[to_string(id).size() + 1];
-                memcpy(id_, to_string(id).c_str(), to_string(id).size() + 1);
+                char* id_ = new char[to_string(childId).size() + 1];
+                memcpy(id_, to_string(childId).c_str(), to_string(childId).size() + 1);
 
                 char* args[] = {"./child", adr_, id_, NULL};
 
                 int processId = fork();
                 if (processId < 0) {
                     cerr << "Unable to create first worker node" << endl;
-                    id = 0;
+                    childId = 0;
                     exit(1);
                 } else if (processId == 0) {
                     execv("./child", args);
                 }
 
-                child_id = id;
+                child_id = childId;
 
                 zmq::message_t message;
                 mainSocket.recv(message);
@@ -63,10 +71,10 @@ int main() {
                 delete[] id_;
 
             } else {
-                int id;
-                cin >> id;
-                //TODO:: получить id родителя
-                string messageString = command + " " + to_string(id);
+
+                // добавляем информацию о родителе
+
+                string messageString = command + " " + to_string(childId) + " " + to_string(parentId);
 
                 zmq::message_t message(messageString.size());
                 memcpy(message.data(), messageString.c_str(), messageString.size());
@@ -74,6 +82,8 @@ int main() {
 
                 mainSocket.recv(message);
                 string receiveMessage(static_cast<char*>(message.data()), message.size());
+
+                //TODO:: обработать полученное сообщение (если нет такого родителя)
                 cout << receiveMessage << std::endl;
             }
 

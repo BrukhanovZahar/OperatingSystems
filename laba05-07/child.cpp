@@ -128,23 +128,31 @@ int main(int argc, char* argv[]) {
 
         } else if (command == "create") {
 
-            int idNewProc;
-            string idNewProcString;
+
+            bool isSpace = false;
+            int idNewProc, parentIdNewProc;
+            string idNewProcString, parentIdNewProcString;
+
             for (int i = 7; i < receivedMessage.size(); ++i) {
-                if (receivedMessage[i] != ' ') {
+                if (receivedMessage[i] == ' ') {
+                    isSpace = true;
+                } else if (receivedMessage[i] != ' ' && !isSpace) {
                     idNewProcString += receivedMessage[i];
-                } else {
-                    break;
+                } else if (receivedMessage[i] != ' ' && isSpace) {
+                    parentIdNewProcString += receivedMessage[i];
                 }
             }
 
             idNewProc = stoi(idNewProcString);
+            parentIdNewProc = stoi(parentIdNewProcString);
 
             if (idNewProc == idThisNode) {
                 sendMessage("Error: Already exists", mainSocket);
             } else {
 
-                if (childNodeId == 0) {
+                if (childNodeId == 0 && parentIdNewProc == idThisNode) {
+
+                    // ничего не трогаем
                     childNodeId = idNewProc;
                     childSocket.bind(adrChild + to_string(childNodeId));
                     adrChild += to_string(childNodeId);
@@ -177,12 +185,21 @@ int main(int argc, char* argv[]) {
                     delete[] adrChildTmp;
                     delete[] childIdTmp;
 
+                } else if (childNodeId == 0 && parentIdNewProc != idThisNode) {
+
+                    sendMessage("Error: there is no such parent", mainSocket);
+
+                } else if (childNodeId != 0 && parentIdNewProc == idThisNode) {
+
+                    sendMessage("Error: this parent already has a child", mainSocket);
+
                 } else {
                     sendMessage(receivedMessage, childSocket);
                     zmq::message_t message;
                     if (!childSocket.recv(message)) {
                         cerr << "Error: can't receive message from child node in node with pid: " << getpid() << endl;
                     }
+
                     if (!mainSocket.send(message)) {
                         cerr << "Error: can't send message to main node from node with pid: " << getpid() << endl;
                     }
@@ -258,4 +275,5 @@ int main(int argc, char* argv[]) {
             return 0;
         }
     }
+
 }
