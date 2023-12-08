@@ -116,14 +116,18 @@ int main() {
             int id;
             cin >> id;
 
-            string messageString = command + " " + to_string(id);
-            zmq::message_t message(messageString.size());
-            memcpy(message.data(), messageString.c_str(), messageString.size());
-            mainSocket.send(message);
+            if (child_id == 0) {
+                cout << "OK: 0" << endl;
+            } else {
+                string messageString = command + " " + to_string(id);
+                zmq::message_t message(messageString.size());
+                memcpy(message.data(), messageString.c_str(), messageString.size());
+                mainSocket.send(message);
 
-            mainSocket.recv(message);
-            string receiveMessage(static_cast<char*>(message.data()), message.size());
-            cout << receiveMessage << endl;
+                mainSocket.recv(message);
+                string receiveMessage(static_cast<char*>(message.data()), message.size());
+                cout << receiveMessage << endl;
+            }
 
         } else if (command == "kill") {
             int id;
@@ -132,16 +136,17 @@ int main() {
             if (child_id == 0) {
                 cout << "Error: there isn't nodes" << endl;
             } else if (child_id == id) {
-                string killMessage = command + " " + to_string(id);
+
+                string killMessage = "DIE";
                 zmq::message_t message(killMessage.size());
                 memcpy(message.data(), killMessage.c_str(), killMessage.size());
                 mainSocket.send(message);
 
-                mainSocket.recv(message);
-                string receiveMessage(static_cast<char*>(message.data()), message.size());
-                cout << receiveMessage << endl;
-                cout << "Tree deleted successfully" << endl;
-                return 0;
+                mainSocket.unbind(adr + to_string(child_id));
+                child_id = 0;
+
+                cout << "Node deleted successfully" << endl;
+
             } else {
                 string killMessage = command + " " + to_string(id);
                 zmq::message_t message(killMessage.size());
@@ -158,7 +163,7 @@ int main() {
                 zmq::message_t message(killMessage.size());
                 memcpy(message.data(), killMessage.c_str(), killMessage.size());
                 mainSocket.send(message);
-                cout << "Tree was deleted" << endl;
+                cout << "All node was deleted" << endl;
             }
 
             mainSocket.close();
