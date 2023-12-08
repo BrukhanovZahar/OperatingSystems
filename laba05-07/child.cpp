@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <fstream>
 #include <algorithm>
+#include <thread>
 
 // g++ child.cpp -lzmq -o child -w
 
@@ -20,6 +21,48 @@ void sendMessage(const string& messageString, zmq::socket_t& socket) {
     if (!socket.send(messageBack)) {
         cerr << "Error: can't send message from node with pid " << getpid() << endl;
     }
+}
+
+void calculationSeparateThread(string receivedMessage, string idProcString, int idProc) {
+    cout << "Function started in thread: " << std::this_thread::get_id() << endl;
+    sleep(10);
+
+    int flag = 0;
+    string text, pattern, returnMessage;
+    vector<int> answer;
+
+    // разделяем text и pattern
+    for (int i = 6 + idProcString.size(); i < receivedMessage.size(); ++i) {
+        if (receivedMessage[i] == ' ') {
+            ++flag;
+        } else if ((receivedMessage[i] != ' ') && (flag == 0)) {
+            text += receivedMessage[i];
+        } else if ((receivedMessage[i] != ' ') && (flag == 1)) {
+            pattern += receivedMessage[i];
+        }
+    }
+
+    if (text.size() >= pattern.size()) {
+        int start = 0;
+        while (text.find(pattern, start) != -1) {
+            start = text.find(pattern, start);
+            answer.push_back(start);
+            ++start;
+        }
+    }
+
+    if (answer.empty()) {
+        returnMessage = "-1";
+    } else {
+        returnMessage = to_string(answer[0]);
+        for (int i = 1; i < answer.size(); ++i) {
+            returnMessage = returnMessage + ";" + to_string(answer[i]);
+        }
+    }
+
+    cout << endl << "OK:" << to_string(idProc) + ":" + returnMessage << endl;
+
+    cout << "Function completed in thread: " << std::this_thread::get_id() << endl;
 }
 
 
@@ -57,9 +100,6 @@ int main(int argc, char* argv[]) {
 
             int idProc; // id of node for adding
             string idProcString;
-            string text, pattern, returnMessage;
-            int flag = 0;
-            vector<int> answer;
 
             for (int i = 5; i < receivedMessage.size(); ++i) {
                 if (receivedMessage[i] != ' ') {
@@ -73,36 +113,14 @@ int main(int argc, char* argv[]) {
 
             if (idProc == idThisNode) {
 
-                // разделяем text и pattern
-                for (int i = 6 + idProcString.size(); i < receivedMessage.size(); ++i) {
-                    if (receivedMessage[i] == ' ') {
-                        ++flag;
-                    } else if ((receivedMessage[i] != ' ') && (flag == 0)) {
-                        text += receivedMessage[i];
-                    } else if ((receivedMessage[i] != ' ') && (flag == 1)) {
-                        pattern += receivedMessage[i];
-                    }
-                }
+                thread workThread(calculationSeparateThread, receivedMessage, idProcString, idProc);
 
-                if (text.size() >= pattern.size()) {
-                    int start = 0;
-                    while (text.find(pattern, start) != -1) {
-                        start = text.find(pattern, start);
-                        answer.push_back(start);
-                        ++start;
-                    }
-                }
+                workThread.detach();
 
-                if (answer.empty()) {
-                    returnMessage = "-1";
-                } else {
-                    returnMessage = to_string(answer[0]);
-                    for (int i = 1; i < answer.size(); ++i) {
-                        returnMessage = returnMessage + ";" + to_string(answer[i]);
-                    }
-                }
+                cout << "Main thread continues execution without waiting for myThread to finish." << endl;
 
-                returnMessage = "OK:" + idProcString + ":" + returnMessage;
+
+                string returnMessage = "The child process performs calculations and outputs them when it finishes calculations";
                 sendMessage(returnMessage, mainSocket);
 
             } else {
