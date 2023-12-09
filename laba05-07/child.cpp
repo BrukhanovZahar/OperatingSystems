@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <thread>
 
-// g++ child.cpp -lzmq -o child -w
 
 using namespace std;
 
@@ -116,9 +115,6 @@ int main(int argc, char* argv[]) {
                 thread workThread(calculationSeparateThread, receivedMessage, idProcString, idProc);
 
                 workThread.detach();
-
-                cout << "Main thread continues execution without waiting for myThread to finish." << endl;
-
 
                 string returnMessage = "The child process performs calculations and outputs them when it finishes calculations";
                 sendMessage(returnMessage, mainSocket);
@@ -271,7 +267,7 @@ int main(int argc, char* argv[]) {
                 sendMessage("Error: there isn`t node with this id", mainSocket);
             } else {
                 if (childNodeId == idProcToKill) {
-                    sendMessage("Ok: " + to_string(childNodeId), mainSocket);
+                    sendMessage("OK: " + to_string(childNodeId), mainSocket);
                     sendMessage("DIE", childSocket);
                     childSocket.unbind(adrChild);
                     adrChild = "tcp://127.0.0.1:300";

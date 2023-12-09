@@ -9,16 +9,15 @@
 #include <set>
 #include <algorithm>
 
-// g++ parent.cpp -lzmq -o main -w
 using namespace std;
 
 int main() {
-    zmq::context_t context(1); // служебная структура контекст
-    zmq::socket_t mainSocket(context,
-                             ZMQ_REP); // поднятие сокета в контексте ZMQ_REP для отправки запросов и получения ответов
+    zmq::context_t context(1);
     string adr = "tcp://127.0.0.1:300";
     string command;
-    int child_id = 0;
+    vector<int> childesId;
+    vector<unique_ptr<zmq::socket_t>> sockets;
+
 
     while (true) {
         cout << "command:";
@@ -29,16 +28,16 @@ int main() {
             int childId, parentId;
             cin >> childId >> parentId;
 
-            if (child_id == 0) {
+            if (childesId.empty()) {
 
                 if (parentId != -1) {
                     cerr << "There is no such parent node" << endl;
                     continue;
                 }
 
-                // осталвяем все как есть
+                auto socket = std::make_unique<zmq::socket_t>(context, ZMQ_REP);
 
-                mainSocket.bind(adr + to_string(childId));
+                socket->bind(adr + to_string(childId));
                 string new_adr = adr + to_string(childId);
 
                 char* adr_ = new char[new_adr.size() + 1];
@@ -58,10 +57,11 @@ int main() {
                     execv("./child", args);
                 }
 
-                child_id = childId;
+                childesId.push_back(childId);
+                sockets.push_back(std::move(socket));
 
                 zmq::message_t message;
-                mainSocket.recv(message);
+                sockets[sockets.size() - 1]->recv(message);
 
 
                 string receiveMessage(static_cast<char*>(message.data()), message.size());
@@ -72,19 +72,86 @@ int main() {
 
             } else {
 
-                // добавляем информацию о родителе
+                if (parentId == -1) {
 
-                string messageString = command + " " + to_string(childId) + " " + to_string(parentId);
+                    bool wasChild = false;
+                    for (int indexInChildes = 0; indexInChildes < childesId.size(); ++indexInChildes) {
+                        if (childesId[indexInChildes] == childId) {
+                            cout << "This id has already been created" << endl;
+                            wasChild = true;
+                            break;
+                        }
+                    }
+                    if (wasChild) {
+                        continue;
+                    }
 
-                zmq::message_t message(messageString.size());
-                memcpy(message.data(), messageString.c_str(), messageString.size());
-                mainSocket.send(message);
+                    auto socket = std::make_unique<zmq::socket_t>(context, ZMQ_REP);
 
-                mainSocket.recv(message);
-                string receiveMessage(static_cast<char*>(message.data()), message.size());
+                    socket->bind(adr + to_string(childId));
+                    string new_adr = adr + to_string(childId);
 
-                //TODO:: обработать полученное сообщение (если нет такого родителя)
-                cout << receiveMessage << std::endl;
+                    char* adr_ = new char[new_adr.size() + 1];
+                    memcpy(adr_, new_adr.c_str(), new_adr.size() + 1);
+
+                    char* id_ = new char[to_string(childId).size() + 1];
+                    memcpy(id_, to_string(childId).c_str(), to_string(childId).size() + 1);
+
+                    char* args[] = {"./child", adr_, id_, NULL};
+
+                    int processId = fork();
+                    if (processId < 0) {
+                        cerr << "Unable to create first worker node" << endl;
+                        childId = 0;
+                        exit(1);
+                    } else if (processId == 0) {
+                        execv("./child", args);
+                    }
+
+                    childesId.push_back(childId);
+                    sockets.push_back(std::move(socket));
+
+                    zmq::message_t message;
+                    sockets[sockets.size() - 1]->recv(message);
+
+
+                    string receiveMessage(static_cast<char*>(message.data()), message.size());
+                    cout << receiveMessage << endl;
+
+                    delete[] adr_;
+                    delete[] id_;
+
+
+                } else {
+                    string messageString = command + " " + to_string(childId) + " " + to_string(parentId);
+
+
+                    for (int indexOfSockets{0}; indexOfSockets < sockets.size(); ++indexOfSockets) {
+
+                        zmq::message_t message(messageString.size());
+                        memcpy(message.data(), messageString.c_str(), messageString.size());
+
+                        sockets[indexOfSockets]->send(message);
+                        sockets[indexOfSockets]->recv(message);
+                        string receiveMessage(static_cast<char*>(message.data()), message.size());
+
+                        if (receiveMessage[0] == 'O' && receiveMessage[1] == 'K') {
+                            cout << receiveMessage << endl;
+                            break;
+                        } else if (receiveMessage == "Error: Already exists") {
+                            cout << receiveMessage << endl;
+                            break;
+                        } else if (receiveMessage == "Error: this parent already has a child") {
+                            cout << receiveMessage << endl;
+                            break;
+                        } else if (receiveMessage == "Error: there is no such parent" &&
+                                   indexOfSockets == sockets.size() - 1) {
+                            cout << receiveMessage << endl;
+                            break;
+                        }
+
+                    }
+                }
             }
 
         } else if (command == "exec") {
@@ -94,7 +161,6 @@ int main() {
             cin >> text >> pattern;
 
             string messageString;
-//            messageString.append(command + " " + std::to_string(id) + " " + text + " " + pattern);
             messageString.append(command);
             messageString.append(" ");
             messageString.append(to_string(id));
@@ -103,70 +169,118 @@ int main() {
             messageString.append(" ");
             messageString.append(pattern);
 
-            zmq::message_t message(messageString.size());
-            memcpy(message.data(), messageString.c_str(), messageString.size());
-            mainSocket.send(message);
+            for (int indexOfSockets{0}; indexOfSockets < sockets.size(); ++indexOfSockets) {
 
-            // return value from map
-            mainSocket.recv(message);
-            string receiveMessage(static_cast<char*>(message.data()), message.size());
-            cout << receiveMessage << endl;
+                zmq::message_t message(messageString.size());
+                memcpy(message.data(), messageString.c_str(), messageString.size());
+
+                sockets[indexOfSockets]->send(message);
+                sockets[indexOfSockets]->recv(message);
+                string receiveMessage(static_cast<char*>(message.data()), message.size());
+
+                if (receiveMessage[0] == 'T' && receiveMessage[1] == 'h' && receiveMessage[2] == 'e') {
+                    cout << receiveMessage << endl;
+                    break;
+                } else if (receiveMessage == "Error: id: Not found" &&
+                           indexOfSockets == sockets.size() - 1) {
+                    cout << receiveMessage << endl;
+                    break;
+                }
+
+            }
+
 
         } else if (command == "ping") {
             int id;
             cin >> id;
 
-            if (child_id == 0) {
+            if (childesId.empty()) {
                 cout << "OK: 0" << endl;
             } else {
-                string messageString = command + " " + to_string(id);
-                zmq::message_t message(messageString.size());
-                memcpy(message.data(), messageString.c_str(), messageString.size());
-                mainSocket.send(message);
 
-                mainSocket.recv(message);
-                string receiveMessage(static_cast<char*>(message.data()), message.size());
-                cout << receiveMessage << endl;
+                string messageString = command + " " + to_string(id);
+
+                for (int indexOfSockets{0}; indexOfSockets < sockets.size(); ++indexOfSockets) {
+
+                    zmq::message_t message(messageString.size());
+                    memcpy(message.data(), messageString.c_str(), messageString.size());
+
+                    sockets[indexOfSockets]->send(message);
+                    sockets[indexOfSockets]->recv(message);
+                    string receiveMessage(static_cast<char*>(message.data()), message.size());
+
+                    if (receiveMessage == "OK: 1") {
+                        cout << receiveMessage << endl;
+                        break;
+                    } else if (receiveMessage == "OK: 0" &&
+                               indexOfSockets == sockets.size() - 1) {
+                        cout << receiveMessage << endl;
+                        break;
+                    }
+
+                }
             }
 
         } else if (command == "kill") {
             int id;
             cin >> id;
 
-            if (child_id == 0) {
+            if (childesId.empty()) {
                 cout << "Error: there isn't nodes" << endl;
-            } else if (child_id == id) {
-
-                string killMessage = "DIE";
-                zmq::message_t message(killMessage.size());
-                memcpy(message.data(), killMessage.c_str(), killMessage.size());
-                mainSocket.send(message);
-
-                mainSocket.unbind(adr + to_string(child_id));
-                child_id = 0;
-
-                cout << "Node deleted successfully" << endl;
-
             } else {
-                string killMessage = command + " " + to_string(id);
-                zmq::message_t message(killMessage.size());
-                memcpy(message.data(), killMessage.c_str(), killMessage.size());
-                mainSocket.send(message);
 
-                mainSocket.recv(message);
-                string receivedMessage(static_cast<char*>(message.data()), message.size());
-                cout << receivedMessage << endl;
+                for (int indexOfSockets{0}; indexOfSockets < sockets.size(); ++indexOfSockets) {
+
+
+                    if (childesId[indexOfSockets] == id) {
+                        string killMessage = "DIE";
+                        zmq::message_t message(killMessage.size());
+                        memcpy(message.data(), killMessage.c_str(), killMessage.size());
+                        sockets[indexOfSockets]->send(message);
+
+                        sockets[indexOfSockets]->unbind(adr + to_string(childesId[indexOfSockets]));
+                        childesId.erase(childesId.begin() + indexOfSockets);
+
+                        cout << "Node deleted successfully" << endl;
+
+                    } else {
+                        string killMessage = command + " " + to_string(id);
+                        zmq::message_t message(killMessage.size());
+                        memcpy(message.data(), killMessage.c_str(), killMessage.size());
+
+                        sockets[indexOfSockets]->send(message);
+                        sockets[indexOfSockets]->recv(message);
+                        string receiveMessage(static_cast<char*>(message.data()), message.size());
+
+                        if (receiveMessage[0] == 'O' && receiveMessage[1] == 'K') {
+                            cout << receiveMessage << endl;
+                            break;
+                        } else if (receiveMessage == "Error: there isn`t node with this id" &&
+                                   indexOfSockets == sockets.size() - 1) {
+                            cout << receiveMessage << endl;
+                            break;
+                        }
+                    }
+                }
+
             }
+
         } else if (command == "exit") {
-            if (child_id) {
-                string killMessage = "DIE";
-                zmq::message_t message(killMessage.size());
-                memcpy(message.data(), killMessage.c_str(), killMessage.size());
-                mainSocket.send(message);
-                cout << "All node was deleted" << endl;
+
+            for (int indexOfSockets{0}; indexOfSockets < sockets.size(); ++indexOfSockets) {
+
+                if (childesId[indexOfSockets]) {
+                    string killMessage = "DIE";
+                    zmq::message_t message(killMessage.size());
+                    memcpy(message.data(), killMessage.c_str(), killMessage.size());
+
+                    sockets[indexOfSockets]->send(message);
+                }
+                sockets[indexOfSockets]->close();
+
             }
 
-            mainSocket.close();
+            cout << "All node was deleted" << endl;
             context.close();
             break;
         } else {
