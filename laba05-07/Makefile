@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -lzmq -w
+CFLAGS = -lzmq -w -pthread
 
 all: main child
 
